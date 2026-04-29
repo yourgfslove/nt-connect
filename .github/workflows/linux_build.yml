@@ -1,0 +1,85 @@
+name: Build Linux App
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ "main", "master" ]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      # =====================
+      # 1. Checkout (with submodules)
+      # =====================
+      - name: Checkout repo
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      # =====================
+      # 2. Install system deps
+      # =====================
+      - name: Install dependencies
+        run: |
+          sudo apt update
+          sudo apt install -y \
+            clang \
+            cmake \
+            ninja-build \
+            pkg-config \
+            libgtk-3-dev \
+            liblzma-dev \
+            libsecret-1-dev \
+            libasound2-dev \
+            libpulse-dev \
+            libglib2.0-dev
+
+      # =====================
+      # 3. Setup Flutter
+      # =====================
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - name: Enable Linux desktop
+        run: flutter config --enable-linux-desktop
+
+      - name: Flutter doctor
+        run: flutter doctor
+
+      # =====================
+      # 4. Setup Rust
+      # =====================
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      # =====================
+      # 5. Build Rust (Linux target)
+      # =====================
+      - name: Build Rust
+        run: cargo build --release
+
+      # =====================
+      # 6. Build Flutter Linux
+      # =====================
+      - name: Build Flutter Linux
+        run: flutter build linux --release
+
+      # =====================
+      # 7. Copy Rust .so to build
+      # =====================
+      - name: Copy Rust library
+        run: |
+          cp target/release/*.so build/linux/x64/release/bundle/
+
+      # =====================
+      # 8. Upload artifact
+      # =====================
+      - name: Upload Linux build
+        uses: actions/upload-artifact@v4
+        with:
+          name: linux-build
+          path: build/linux/x64/release/bundle/
