@@ -1,73 +1,71 @@
-name: Linux Build (Flutter + Rust)
+name: Linux Build (Production)
 
 on:
   workflow_dispatch:
   push:
-    branches: [ "main", "master" ]
+    branches: [ main, master ]
 
 jobs:
   build:
     runs-on: ubuntu-latest
 
     steps:
-      # =====================
-      # Checkout + submodules
-      # =====================
       - name: Checkout
         uses: actions/checkout@v4
         with:
           submodules: recursive
 
-      # =====================
-      # System dependencies (NO vcpkg)
-      # =====================
-      - name: Install Linux deps
+      # ======================
+      # SYSTEM DEPENDENCIES
+      # ======================
+      - name: Install deps
         run: |
           sudo apt update
           sudo apt install -y \
             clang cmake ninja-build pkg-config \
             libgtk-3-dev libglib2.0-dev \
-            libasound2-dev libpulse-dev libsecret-1-dev
+            libasound2-dev libpulse-dev libsecret-1-dev \
+            libgstreamer1.0-dev \
+            libgstreamer-plugins-base1.0-dev \
+            gstreamer1.0-plugins-base \
+            gstreamer1.0-plugins-good \
+            gstreamer1.0-plugins-bad \
+            gstreamer1.0-plugins-ugly \
+            gstreamer1.0-libav
 
-      # =====================
+      # ======================
       # Flutter
-      # =====================
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
+      # ======================
+      - uses: subosito/flutter-action@v2
         with:
           channel: stable
 
       - run: flutter config --enable-linux-desktop
 
-      # =====================
+      # ======================
       # Rust
-      # =====================
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
+      # ======================
+      - uses: dtolnay/rust-toolchain@stable
 
-      # =====================
+      # ======================
       # Build Rust
-      # =====================
-      - name: Build Rust
-        run: cargo build --release
+      # ======================
+      - run: cargo build --release
 
-      # =====================
-      # Build Flutter Linux
-      # =====================
-      - name: Build Flutter Linux
-        run: flutter build linux --release
+      # ======================
+      # Build Flutter
+      # ======================
+      - run: flutter build linux --release
 
-      # =====================
+      # ======================
       # Copy .so
-      # =====================
-      - name: Copy Rust library
-        run: cp target/release/*.so build/linux/x64/release/bundle/
+      # ======================
+      - run: cp target/release/*.so build/linux/x64/release/bundle/
 
-      # =====================
-      # Upload artifact
-      # =====================
-      - name: Upload Linux build
-        uses: actions/upload-artifact@v4
+      # ======================
+      # Upload
+      # ======================
+      - uses: actions/upload-artifact@v4
         with:
           name: linux-build
           path: build/linux/x64/release/bundle/

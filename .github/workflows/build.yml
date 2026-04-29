@@ -1,75 +1,111 @@
-name: Windows Build (Flutter + Rust + vcpkg)
+name: Windows Build (nt-connect.exe)
 
 on:
   workflow_dispatch:
   push:
-    branches: [ "main", "master" ]
+    branches: ["main", "master"]
+
+env:
+  LLVM_VERSION: "15.0.6"
+  FLUTTER_VERSION: "3.24.5"
+  RUST_VERSION: "1.75"
+  FLUTTER_RUST_BRIDGE_VERSION: "1.80.1"
+  CARGO_EXPAND_VERSION: "1.0.95"
+  VCPKG_COMMIT_ID: "120deac3062162151622ca4860575a33844ba10b"
 
 jobs:
   build:
-    runs-on: windows-latest
-
+    name: Build nt-connect.exe
+    runs-on: windows-2022
     steps:
-      # =====================
-      # Checkout + submodules
-      # =====================
       - name: Checkout
         uses: actions/checkout@v4
         with:
           submodules: recursive
 
-      # =====================
-      # Setup vcpkg (FIX magnum-opus)
-      # =====================
-      - name: Setup vcpkg
-        run: |
-          git clone https://github.com/microsoft/vcpkg.git C:\vcpkg
-          C:\vcpkg\bootstrap-vcpkg.bat
+      - name: Install LLVM and Clang
+        uses: KyleMayes/install-llvm-action@v1
+        with:
+          version: ${{ env.LLVM_VERSION }}
 
-      - name: Set VCPKG_ROOT
-        run: echo "VCPKG_ROOT=C:\vcpkg" >> $env:GITHUB_ENV
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@v1
+        with:
+          toolchain: ${{ env.RUST_VERSION }}
+          targets: x86_64-pc-windows-msvc
+          components: rustfmt
 
-      # =====================
-      # Flutter
-      # =====================
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
+      - uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: windows-2022
+
+      - name: Install Flutter
+        uses: subosito/flutter-action@v2.12.0
         with:
           channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
 
-      - run: flutter config --enable-windows-desktop
+      - name: Replace Flutter engine with rustdesk custom build
+        shell: pwsh
+        run: |
+          flutter doctor -v
+          flutter precache --windows
+          Invoke-WebRequest -Uri https://github.com/rustdesk/engine/releases/download/main/windows-x64-release.zip -OutFile windows-x64-release.zip
+          Expand-Archive -Path windows-x64-release.zip -DestinationPath windows-x64-release
+          mv -Force windows-x64-release/* C:/hostedtoolcache/windows/flutter/stable-${{ env.FLUTTER_VERSION }}-x64/bin/cache/artifacts/engine/windows-x64-release/
 
-      # =====================
-      # Rust (MSVC)
-      # =====================
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
+      - name: Patch Flutter SDK (3.24.5 dropdown_menu)
+        shell: bash
+        run: |
+          cp .github/patches/flutter_3.24.4_dropdown_menu_enableFilter.diff "$(dirname "$(dirname "$(which flutter)")")"
+          cd "$(dirname "$(dirname "$(which flutter)")")"
+          git apply flutter_3.24.4_dropdown_menu_enableFilter.diff
+
+      - name: Setup vcpkg
+        uses: lukka/run-vcpkg@v11
         with:
-          toolchain: stable-x86_64-pc-windows-msvc
+          vcpkgDirectory: C:\vcpkg
+          vcpkgGitCommitId: ${{ env.VCPKG_COMMIT_ID }}
+          doNotCache: false
 
-      # =====================
-      # Build Rust
-      # =====================
-      - name: Build Rust
-        run: cargo build --release
+      - name: vcpkg install (x64-windows-static)
+        shell: bash
+        env:
+          VCPKG_DEFAULT_HOST_TRIPLET: x64-windows-static
+        run: |
+          "$VCPKG_ROOT/vcpkg" install \
+            --triplet x64-windows-static \
+            --x-install-root="$VCPKG_ROOT/installed"
 
-      # =====================
-      # Build Flutter
-      # =====================
-      - name: Build Flutter
-        run: flutter build windows --release
+      - name: Generate flutter_rust_bridge bindings
+        shell: bash
+        run: |
+          cargo install cargo-expand --version ${{ env.CARGO_EXPAND_VERSION }} --locked
+          cargo install flutter_rust_bridge_codegen --version ${{ env.FLUTTER_RUST_BRIDGE_VERSION }} --features uuid --locked
+          pushd flutter
+          sed -i -e 's/extended_text: 14.0.0/extended_text: 13.0.0/g' pubspec.yaml
+          flutter pub get
+          popd
+          flutter_rust_bridge_codegen \
+            --rust-input ./src/flutter_ffi.rs \
+            --dart-output ./flutter/lib/generated_bridge.dart \
+            --c-output ./flutter/macos/Runner/bridge_generated.h
+          cp ./flutter/macos/Runner/bridge_generated.h ./flutter/ios/Runner/bridge_generated.h
 
-      # =====================
-      # Copy DLL
-      # =====================
-      - name: Copy Rust DLL
-        run: copy target\release\*.dll build\windows\runner\Release\
+      - name: Build nt-connect (Rust + Flutter)
+        shell: pwsh
+        env:
+          VCPKG_ROOT: C:\vcpkg
+        run: |
+          python3 .\build.py --portable --hwcodec --flutter --vram --skip-portable-pack
 
-      # =====================
-      # Upload artifact
-      # =====================
-      - name: Upload Windows build
+      - name: Stage artifact
+        shell: pwsh
+        run: |
+          mv ./flutter/build/windows/x64/runner/Release ./nt-connect
+
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: windows-build
-          path: build/windows/runner/Release/
+          name: nt-connect-windows-x86_64
+          path: nt-connect
