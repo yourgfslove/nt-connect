@@ -100,35 +100,26 @@ class _PeerTabPageState extends State<PeerTabPage>
 
   @override
   Widget build(BuildContext context) {
-    final model = Provider.of<PeerTabModel>(context);
-    Widget selectionWrap(Widget widget) {
-      return model.multiSelectionMode ? createMultiSelectionBar(model) : widget;
-    }
-
+    final color = MyTheme.tabbar(context).selectedTextColor;
     return Column(
       textBaseline: TextBaseline.ideographic,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Obx(() => SizedBox(
-              height: 32,
-              child: Container(
-                padding: stateGlobal.isPortrait.isTrue
-                    ? EdgeInsets.symmetric(horizontal: 2)
-                    : null,
-                child: selectionWrap(Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    Expanded(
-                        child: visibleContextMenuListener(
-                            _createSwitchBar(context))),
-                    if (stateGlobal.isPortrait.isTrue)
-                      ..._portraitRightActions(context)
-                    else
-                      ..._landscapeRightActions(context)
-                  ],
-                )),
+        SizedBox(
+          height: 32,
+          child: Align(
+            alignment: Alignment.centerLeft,
+            child: Container(
+              decoration: BoxDecoration(
+                border: Border(
+                  bottom: BorderSide(width: 2, color: color!),
+                ),
               ),
-            ).paddingOnly(right: stateGlobal.isPortrait.isTrue ? 0 : 12)),
+              child: Icon(Icons.access_time_filled, color: color)
+                  .paddingSymmetric(horizontal: 4),
+            ).paddingSymmetric(horizontal: 4),
+          ),
+        ),
         _createPeersView(),
       ],
     );
