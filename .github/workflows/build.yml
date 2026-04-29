@@ -7,31 +7,74 @@ jobs:
   build:
     runs-on: windows-latest
 
+    env:
+      VCPKG_ROOT: C:\vcpkg
+
     steps:
-      - name: Checkout with submodules
+      # =====================
+      # 1. Checkout (WITH submodules)
+      # =====================
+      - name: Checkout repo
         uses: actions/checkout@v4
         with:
           submodules: recursive
 
+      # =====================
+      # 2. Install vcpkg
+      # =====================
+      - name: Install vcpkg
+        shell: pwsh
+        run: |
+          git clone https://github.com/microsoft/vcpkg.git C:\vcpkg
+          C:\vcpkg\bootstrap-vcpkg.bat
+
+      - name: Set VCPKG_ROOT
+        shell: pwsh
+        run: echo "VCPKG_ROOT=C:\vcpkg" >> $env:GITHUB_ENV
+
+      # =====================
+      # 3. Setup Flutter
+      # =====================
       - name: Setup Flutter
         uses: subosito/flutter-action@v2
         with:
           channel: stable
 
+      - name: Flutter doctor
+        run: flutter doctor
+
+      # =====================
+      # 4. Setup Rust (MSVC)
+      # =====================
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable-x86_64-pc-windows-msvc
 
+      # =====================
+      # 5. Build Rust
+      # =====================
       - name: Build Rust
+        shell: pwsh
         run: cargo build --release
 
+      # =====================
+      # 6. Build Flutter Windows
+      # =====================
       - name: Build Flutter
         run: flutter build windows --release
 
-      - name: Copy DLL
-        run: copy target\release\*.dll build\windows\runner\Release\
+      # =====================
+      # 7. Copy Rust DLL to Flutter build
+      # =====================
+      - name: Copy DLLs
+        shell: pwsh
+        run: |
+          copy target\release\*.dll build\windows\runner\Release\
 
+      # =====================
+      # 8. Upload artifact
+      # =====================
       - name: Upload EXE
         uses: actions/upload-artifact@v4
         with:
