@@ -2,10 +2,10 @@
 Name=NT Connect
 NoDisplay=true
 MimeType=x-scheme-handler/rustdesk;
-TryExec=rustdesk
-Exec=rustdesk %u
+TryExec=nt-connect
+Exec=nt-connect %u
 Icon=rustdesk
 Terminal=false
 Type=Application
 StartupNotify=false
-StartupWMClass=rustdesk
+StartupWMClass=nt-connect

@@ -92,9 +92,9 @@ BEGIN
             VALUE "CompanyName", "nt" "\0"
             VALUE "FileDescription", "NT Connect Remote Desktop" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
-            VALUE "InternalName", "rustdesk" "\0"
+            VALUE "InternalName", "nt-connect" "\0"
             VALUE "LegalCopyright", "Copyright © 2026 nt" "\0"
-            VALUE "OriginalFilename", "rustdesk.exe" "\0"
+            VALUE "OriginalFilename", "nt-connect.exe" "\0"
             VALUE "ProductName", "NT Connect" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
