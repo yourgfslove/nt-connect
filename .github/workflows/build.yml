@@ -1,4 +1,4 @@
-name: Iron CI (Flutter + Rust, no vcpkg)
+name: Windows Build (Flutter + Rust + vcpkg)
 
 on:
   workflow_dispatch:
@@ -6,15 +6,28 @@ on:
     branches: [ "main", "master" ]
 
 jobs:
-  windows:
-    name: Windows Build
+  build:
     runs-on: windows-latest
 
     steps:
-      - name: Checkout (with submodules)
+      # =====================
+      # Checkout + submodules
+      # =====================
+      - name: Checkout
         uses: actions/checkout@v4
         with:
           submodules: recursive
+
+      # =====================
+      # Setup vcpkg (FIX magnum-opus)
+      # =====================
+      - name: Setup vcpkg
+        run: |
+          git clone https://github.com/microsoft/vcpkg.git C:\vcpkg
+          C:\vcpkg\bootstrap-vcpkg.bat
+
+      - name: Set VCPKG_ROOT
+        run: echo "VCPKG_ROOT=C:\vcpkg" >> $env:GITHUB_ENV
 
       # =====================
       # Flutter
@@ -27,19 +40,12 @@ jobs:
       - run: flutter config --enable-windows-desktop
 
       # =====================
-      # Rust (NO vcpkg, NO MSVC libs linking)
+      # Rust (MSVC)
       # =====================
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable-x86_64-pc-windows-msvc
-
-      # =====================
-      # IMPORTANT: disable magnum-opus system linking
-      # =====================
-      - name: Force pure Rust build mode
-        run: |
-          setx VCPKGRS_DYNAMIC 0
 
       # =====================
       # Build Rust
@@ -50,84 +56,20 @@ jobs:
       # =====================
       # Build Flutter
       # =====================
-      - name: Build Flutter Windows
+      - name: Build Flutter
         run: flutter build windows --release
 
       # =====================
-      # Copy Rust DLL
+      # Copy DLL
       # =====================
-      - name: Copy Rust library
+      - name: Copy Rust DLL
         run: copy target\release\*.dll build\windows\runner\Release\
 
       # =====================
-      # Upload
+      # Upload artifact
       # =====================
-      - name: Upload Windows artifact
+      - name: Upload Windows build
         uses: actions/upload-artifact@v4
         with:
           name: windows-build
           path: build/windows/runner/Release/
-
-  linux:
-    name: Linux Build
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      # =====================
-      # System deps only (NO vcpkg)
-      # =====================
-      - name: Install dependencies
-        run: |
-          sudo apt update
-          sudo apt install -y \
-            clang cmake ninja-build pkg-config \
-            libgtk-3-dev libglib2.0-dev libsecret-1-dev \
-            libasound2-dev libpulse-dev
-
-      # =====================
-      # Flutter
-      # =====================
-      - name: Setup Flutter
-        uses: subosito/flutter-action@v2
-        with:
-          channel: stable
-
-      - run: flutter config --enable-linux-desktop
-
-      # =====================
-      # Rust
-      # =====================
-      - name: Setup Rust
-        uses: dtolnay/rust-toolchain@stable
-
-      # =====================
-      # Build Rust
-      # =====================
-      - name: Build Rust
-        run: cargo build --release
-
-      # =====================
-      # Build Flutter Linux
-      # =====================
-      - name: Build Flutter Linux
-        run: flutter build linux --release
-
-      # =====================
-      # Copy .so
-      # =====================
-      - name: Copy Rust library
-        run: cp target/release/*.so build/linux/x64/release/bundle/
-
-      # =====================
-      # Upload
-      # =====================
-      - name: Upload Linux artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: linux-build
-          path: build/linux/x64/release/bundle/
