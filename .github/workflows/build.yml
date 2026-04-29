@@ -82,6 +82,8 @@ jobs:
         run: |
           cargo install cargo-expand --version ${{ env.CARGO_EXPAND_VERSION }} --locked
           cargo install flutter_rust_bridge_codegen --version ${{ env.FLUTTER_RUST_BRIDGE_VERSION }} --features uuid --locked
+          # Codegen needs older extended_text for `flutter pub get` to succeed under
+          # the codegen tool's constraints. Downgrade temporarily, then restore.
           pushd flutter
           sed -i -e 's/extended_text: 14.0.0/extended_text: 13.0.0/g' pubspec.yaml
           flutter pub get
@@ -91,6 +93,10 @@ jobs:
             --dart-output ./flutter/lib/generated_bridge.dart \
             --c-output ./flutter/macos/Runner/bridge_generated.h
           cp ./flutter/macos/Runner/bridge_generated.h ./flutter/ios/Runner/bridge_generated.h
+          # Restore pubspec to the version required by Flutter 3.24.5.
+          git checkout -- flutter/pubspec.yaml
+          rm -f flutter/pubspec.lock
+          pushd flutter && flutter pub get && popd
 
       - name: Build nt-connect (Rust + Flutter)
         shell: pwsh
